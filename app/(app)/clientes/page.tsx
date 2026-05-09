@@ -2,9 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-import { Search, Plus, Users, ArrowUpDown } from 'lucide-react'
+import { Search, Plus, Users, ArrowUpDown, Loader2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { ClientAvatar } from '@/components/client-avatar'
 import { EmptyState } from '@/components/empty-state'
@@ -12,64 +10,77 @@ import { Modal } from '@/components/modal'
 import { useToast } from '@/components/toast'
 import { cn } from '@/lib/utils'
 
-type SortBy = 'name' | 'lastVisit'
-
 export default function ClientesPage() {
-  const { clients, addClient } = useStore()
+  const { clientes, addCliente, loading } = useStore()
   const { showToast } = useToast()
   const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState<SortBy>('name')
+  const [sortBy, setSortBy] = useState<'nome' | 'id'>('nome')
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    birthDate: '',
-    notes: '',
+    nome: '',
+    telefone: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const filteredClients = useMemo(() => {
-    let filtered = clients.filter(client => 
-      client.name.toLowerCase().includes(search.toLowerCase()) ||
-      client.phone.includes(search)
+    let filtered = clientes.filter(cliente => 
+      cliente.nome.toLowerCase().includes(search.toLowerCase()) ||
+      cliente.telefone.includes(search)
     )
     
     filtered.sort((a, b) => {
-      if (sortBy === 'name') {
-        return a.name.localeCompare(b.name)
+      if (sortBy === 'nome') {
+        return a.nome.localeCompare(b.nome)
       }
-      return (b.lastVisit || '').localeCompare(a.lastVisit || '')
+      return b.id - a.id // mais recentes primeiro
     })
     
     return filtered
-  }, [clients, search, sortBy])
+  }, [clientes, search, sortBy])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     const newErrors: Record<string, string> = {}
-    if (!formData.name.trim()) newErrors.name = 'Nome é obrigatório'
-    if (!formData.phone.trim()) newErrors.phone = 'Telefone é obrigatório'
+    if (!formData.nome.trim()) newErrors.nome = 'Nome é obrigatório'
+    if (!formData.telefone.trim()) newErrors.telefone = 'Telefone é obrigatório'
+    else {
+      // API exige apenas dígitos, min 8 chars
+      const digitsOnly = formData.telefone.replace(/\D/g, '')
+      if (digitsOnly.length < 8) newErrors.telefone = 'Telefone deve ter pelo menos 8 dígitos'
+    }
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
     }
-    
-    addClient({
-      name: formData.name,
-      phone: formData.phone,
-      email: formData.email || undefined,
-      birthDate: formData.birthDate || undefined,
-      notes: formData.notes || undefined,
-    })
-    
-    setFormData({ name: '', phone: '', email: '', birthDate: '', notes: '' })
-    setErrors({})
-    setIsModalOpen(false)
-    showToast('success', 'Cliente cadastrado com sucesso!')
+
+    setIsSubmitting(true)
+    try {
+      await addCliente({
+        nome: formData.nome.trim(),
+        telefone: formData.telefone.replace(/\D/g, ''), // enviar apenas dígitos
+      })
+      
+      setFormData({ nome: '', telefone: '' })
+      setErrors({})
+      setIsModalOpen(false)
+      showToast('success', 'Cliente cadastrado com sucesso!')
+    } catch (err: unknown) {
+      showToast('error', err instanceof Error ? err.message : 'Erro ao cadastrar cliente')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[var(--accent)] animate-spin" />
+      </div>
+    )
   }
 
   return (
@@ -104,41 +115,31 @@ export default function ClientesPage() {
         </div>
         
         <button
-          onClick={() => setSortBy(sortBy === 'name' ? 'lastVisit' : 'name')}
+          onClick={() => setSortBy(sortBy === 'nome' ? 'id' : 'nome')}
           className="flex items-center gap-2 px-4 py-2.5 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:border-[var(--accent)] transition-colors"
         >
           <ArrowUpDown className="w-4 h-4" />
-          {sortBy === 'name' ? 'Nome' : 'Última visita'}
+          {sortBy === 'nome' ? 'Nome' : 'Recentes'}
         </button>
       </div>
 
       {/* Client List */}
       {filteredClients.length > 0 ? (
         <div className="space-y-3">
-          {filteredClients.map((client) => (
+          {filteredClients.map((cliente) => (
             <Link
-              key={client.id}
-              href={`/clientes/${client.id}`}
+              key={cliente.id}
+              href={`/clientes/${cliente.id}`}
               className="flex items-center gap-4 p-4 bg-[var(--bg-card)] rounded-xl border border-[var(--border)] hover:shadow-[var(--shadow-md)] hover:border-[var(--accent)] transition-all duration-200 active:scale-[0.99]"
             >
-              <ClientAvatar name={client.name} size="md" />
+              <ClientAvatar name={cliente.nome} size="md" />
               
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-                  {client.name}
+                  {cliente.nome}
                 </p>
                 <p className="text-xs text-[var(--text-muted)] truncate">
-                  {client.phone}
-                  {client.lastVisit && ` • Última visita: ${format(new Date(client.lastVisit), "d 'de' MMM", { locale: ptBR })}`}
-                </p>
-              </div>
-              
-              <div className="text-right">
-                <p className="text-lg font-semibold text-[var(--text-primary)]">
-                  {client.totalVisits}
-                </p>
-                <p className="text-xs text-[var(--text-muted)]">
-                  {client.totalVisits === 1 ? 'visita' : 'visitas'}
+                  {cliente.telefone}
                 </p>
               </div>
             </Link>
@@ -178,18 +179,18 @@ export default function ClientesPage() {
             </label>
             <input
               type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              value={formData.nome}
+              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
               className={cn(
                 "w-full px-4 py-2.5 bg-[var(--bg-primary)] border rounded-lg text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all",
-                errors.name 
+                errors.nome 
                   ? "border-[var(--danger)] focus:ring-[var(--danger)]" 
                   : "border-[var(--border)] focus:ring-[var(--accent)]"
               )}
               placeholder="Ex: João Pedro Santos"
             />
-            {errors.name && (
-              <p className="text-xs text-[var(--danger)] mt-1">{errors.name}</p>
+            {errors.nome && (
+              <p className="text-xs text-[var(--danger)] mt-1">{errors.nome}</p>
             )}
           </div>
 
@@ -199,57 +200,20 @@ export default function ClientesPage() {
             </label>
             <input
               type="tel"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              value={formData.telefone}
+              onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
               className={cn(
                 "w-full px-4 py-2.5 bg-[var(--bg-primary)] border rounded-lg text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all",
-                errors.phone 
+                errors.telefone 
                   ? "border-[var(--danger)] focus:ring-[var(--danger)]" 
                   : "border-[var(--border)] focus:ring-[var(--accent)]"
               )}
-              placeholder="(11) 99999-9999"
+              placeholder="11999999999"
             />
-            {errors.phone && (
-              <p className="text-xs text-[var(--danger)] mt-1">{errors.phone}</p>
+            {errors.telefone && (
+              <p className="text-xs text-[var(--danger)] mt-1">{errors.telefone}</p>
             )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
-              Email
-            </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 transition-all"
-              placeholder="email@exemplo.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
-              Data de nascimento
-            </label>
-            <input
-              type="date"
-              value={formData.birthDate}
-              onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-              className="w-full px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
-              Observações
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={3}
-              className="w-full px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 transition-all resize-none"
-              placeholder="Preferências, alergias, etc."
-            />
+            <p className="text-xs text-[var(--text-muted)] mt-1">Apenas números, mínimo 8 dígitos</p>
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -265,9 +229,13 @@ export default function ClientesPage() {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2.5 bg-[var(--accent)] text-white font-medium text-sm rounded-lg hover:bg-[var(--accent-hover)] active:scale-[0.97] transition-all duration-200"
+              disabled={isSubmitting}
+              className={cn(
+                "flex-1 px-4 py-2.5 bg-[var(--accent)] text-white font-medium text-sm rounded-lg hover:bg-[var(--accent-hover)] active:scale-[0.97] transition-all duration-200",
+                isSubmitting && "opacity-70 cursor-not-allowed"
+              )}
             >
-              Salvar Cliente
+              {isSubmitting ? 'Salvando...' : 'Salvar Cliente'}
             </button>
           </div>
         </form>

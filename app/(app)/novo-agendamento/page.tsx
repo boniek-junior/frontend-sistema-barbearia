@@ -2,15 +2,15 @@
 
 import { useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { format, addDays, isBefore, startOfDay } from 'date-fns'
+import { format, addDays, parseISO, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ArrowLeft, Search, Plus, Check, User, Scissors, Calendar, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Search, Plus, Check, User, Scissors, Calendar, CheckCircle, Loader2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { ClientAvatar } from '@/components/client-avatar'
 import { Modal } from '@/components/modal'
 import { useToast } from '@/components/toast'
 import { cn } from '@/lib/utils'
-import { Client, Service } from '@/lib/types'
+import { Cliente, TipoServico, SERVICOS, SERVICOS_LIST } from '@/lib/types'
 import Link from 'next/link'
 
 const steps = [
@@ -30,35 +30,34 @@ const timeSlots = [
 function NewAppointmentContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { clients, services, appointments, addClient, addAppointment } = useStore()
+  const { clientes, agendamentos, addCliente, addAgendamento, loading } = useStore()
   const { showToast } = useToast()
 
-  const preselectedClientId = searchParams.get('clientId')
-  const preselectedClient = preselectedClientId 
-    ? clients.find(c => c.id === preselectedClientId) 
+  const preselectedClienteId = searchParams.get('clienteId')
+  const preselectedCliente = preselectedClienteId 
+    ? clientes.find(c => c.id === Number(preselectedClienteId)) 
     : null
 
-  const [currentStep, setCurrentStep] = useState(preselectedClient ? 2 : 1)
-  const [selectedClient, setSelectedClient] = useState<Client | null>(preselectedClient)
-  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const [currentStep, setCurrentStep] = useState(preselectedCliente ? 2 : 1)
+  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(preselectedCliente)
+  const [selectedServico, setSelectedServico] = useState<TipoServico | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [clientSearch, setClientSearch] = useState('')
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false)
-  const [newClientData, setNewClientData] = useState({ name: '', phone: '' })
+  const [newClientData, setNewClientData] = useState({ nome: '', telefone: '' })
   const [isConfirmed, setIsConfirmed] = useState(false)
-
-  const activeServices = services.filter(s => s.active)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const filteredClients = useMemo(() => {
-    if (!clientSearch) return clients
-    return clients.filter(c => 
-      c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-      c.phone.includes(clientSearch)
+    if (!clientSearch) return clientes
+    return clientes.filter(c => 
+      c.nome.toLowerCase().includes(clientSearch.toLowerCase()) ||
+      c.telefone.includes(clientSearch)
     )
-  }, [clients, clientSearch])
+  }, [clientes, clientSearch])
 
-  const next7Days = useMemo(() => {
+  const next14Days = useMemo(() => {
     const days = []
     const today = new Date()
     for (let i = 0; i < 14; i++) {
@@ -69,56 +68,82 @@ function NewAppointmentContent() {
 
   const occupiedSlots = useMemo(() => {
     if (!selectedDate) return new Set<string>()
-    const dateStr = format(selectedDate, 'yyyy-MM-dd')
     return new Set(
-      appointments
-        .filter(a => a.date === dateStr && a.status !== 'cancelado')
-        .map(a => a.time)
+      agendamentos
+        .filter(a => {
+          const aDate = parseISO(a.inicio)
+          return isSameDay(aDate, selectedDate) && a.status !== 'cancelado'
+        })
+        .map(a => format(parseISO(a.inicio), 'HH:mm'))
     )
-  }, [selectedDate, appointments])
+  }, [selectedDate, agendamentos])
 
-  const handleCreateClient = () => {
-    if (!newClientData.name || !newClientData.phone) return
+  const handleCreateClient = async () => {
+    if (!newClientData.nome || !newClientData.telefone) return
     
-    const newClient = addClient({
-      name: newClientData.name,
-      phone: newClientData.phone,
-    })
-    
-    setSelectedClient(newClient)
-    setIsNewClientModalOpen(false)
-    setNewClientData({ name: '', phone: '' })
-    setCurrentStep(2)
-    showToast('success', 'Cliente criado!')
+    setIsSubmitting(true)
+    try {
+      const novoCliente = await addCliente({
+        nome: newClientData.nome.trim(),
+        telefone: newClientData.telefone.replace(/\D/g, ''),
+      })
+      
+      setSelectedCliente(novoCliente)
+      setIsNewClientModalOpen(false)
+      setNewClientData({ nome: '', telefone: '' })
+      setCurrentStep(2)
+      showToast('success', 'Cliente criado!')
+    } catch (err: unknown) {
+      showToast('error', err instanceof Error ? err.message : 'Erro ao criar cliente')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handleConfirm = () => {
-    if (!selectedClient || !selectedService || !selectedDate || !selectedTime) return
+  const handleConfirm = async () => {
+    if (!selectedCliente || !selectedServico || !selectedDate || !selectedTime) return
 
-    addAppointment({
-      clientId: selectedClient.id,
-      client: selectedClient,
-      serviceId: selectedService.id,
-      service: selectedService,
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      time: selectedTime,
-      status: 'confirmado',
-    })
+    setIsSubmitting(true)
+    try {
+      // Montar ISO datetime: combinar date + time
+      const [hours, minutes] = selectedTime.split(':')
+      const inicio = new Date(selectedDate)
+      inicio.setHours(parseInt(hours), parseInt(minutes), 0, 0)
 
-    setIsConfirmed(true)
-    showToast('success', 'Agendamento confirmado!')
+      await addAgendamento({
+        cliente_id: selectedCliente.id,
+        inicio: inicio.toISOString(),
+        servico: selectedServico,
+      })
+
+      setIsConfirmed(true)
+      showToast('success', 'Agendamento confirmado!')
+    } catch (err: unknown) {
+      showToast('error', err instanceof Error ? err.message : 'Erro ao criar agendamento')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const canProceed = () => {
     switch (currentStep) {
-      case 1: return !!selectedClient
-      case 2: return !!selectedService
+      case 1: return !!selectedCliente
+      case 2: return !!selectedServico
       case 3: return !!selectedDate && !!selectedTime
       default: return false
     }
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[var(--accent)] animate-spin" />
+      </div>
+    )
+  }
+
   if (isConfirmed) {
+    const servico = selectedServico ? SERVICOS[selectedServico] : null
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center p-4 text-center">
         <div className="w-20 h-20 rounded-full bg-[var(--success-light)] flex items-center justify-center mb-6">
@@ -130,7 +155,7 @@ function NewAppointmentContent() {
           Agendamento Confirmado!
         </h1>
         <p className="text-[var(--text-secondary)] mb-8 max-w-xs">
-          {selectedClient?.name} está agendado para {selectedService?.name} em{' '}
+          {selectedCliente?.nome} está agendado para {servico?.label} em{' '}
           {selectedDate && format(selectedDate, "d 'de' MMMM", { locale: ptBR })} às {selectedTime}.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -144,8 +169,8 @@ function NewAppointmentContent() {
             onClick={() => {
               setIsConfirmed(false)
               setCurrentStep(1)
-              setSelectedClient(null)
-              setSelectedService(null)
+              setSelectedCliente(null)
+              setSelectedServico(null)
               setSelectedDate(null)
               setSelectedTime(null)
             }}
@@ -245,23 +270,23 @@ function NewAppointmentContent() {
             </button>
 
             <div className="space-y-2 max-h-64 overflow-auto">
-              {filteredClients.map((client) => (
+              {filteredClients.map((cliente) => (
                 <button
-                  key={client.id}
-                  onClick={() => setSelectedClient(client)}
+                  key={cliente.id}
+                  onClick={() => setSelectedCliente(cliente)}
                   className={cn(
                     "w-full flex items-center gap-3 p-3 rounded-xl border transition-all duration-200",
-                    selectedClient?.id === client.id
+                    selectedCliente?.id === cliente.id
                       ? "border-[var(--accent)] bg-[var(--accent-light)]"
                       : "border-[var(--border)] hover:border-[var(--accent)]"
                   )}
                 >
-                  <ClientAvatar name={client.name} size="sm" />
+                  <ClientAvatar name={cliente.nome} size="sm" />
                   <div className="flex-1 text-left">
-                    <p className="text-sm font-medium text-[var(--text-primary)]">{client.name}</p>
-                    <p className="text-xs text-[var(--text-muted)]">{client.phone}</p>
+                    <p className="text-sm font-medium text-[var(--text-primary)]">{cliente.nome}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{cliente.telefone}</p>
                   </div>
-                  {selectedClient?.id === client.id && (
+                  {selectedCliente?.id === cliente.id && (
                     <Check className="w-5 h-5 text-[var(--accent)]" />
                   )}
                 </button>
@@ -278,26 +303,23 @@ function NewAppointmentContent() {
             </h2>
             
             <div className="grid gap-3">
-              {activeServices.map((service) => (
+              {SERVICOS_LIST.map((servico) => (
                 <button
-                  key={service.id}
-                  onClick={() => setSelectedService(service)}
+                  key={servico.value}
+                  onClick={() => setSelectedServico(servico.value)}
                   className={cn(
                     "w-full flex items-center justify-between p-4 rounded-xl border transition-all duration-200",
-                    selectedService?.id === service.id
+                    selectedServico === servico.value
                       ? "border-[var(--accent)] bg-[var(--accent-light)]"
                       : "border-[var(--border)] hover:border-[var(--accent)]"
                   )}
                 >
                   <div className="text-left">
-                    <p className="text-sm font-medium text-[var(--text-primary)]">{service.name}</p>
-                    <p className="text-xs text-[var(--text-muted)]">{service.duration} min</p>
+                    <p className="text-sm font-medium text-[var(--text-primary)]">{servico.label}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{servico.duracao} min</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-lg font-semibold text-[var(--text-primary)]">
-                      R$ {service.price.toFixed(2)}
-                    </span>
-                    {selectedService?.id === service.id && (
+                    {selectedServico === servico.value && (
                       <Check className="w-5 h-5 text-[var(--accent)]" />
                     )}
                   </div>
@@ -315,7 +337,7 @@ function NewAppointmentContent() {
                 Selecionar Data
               </h2>
               <div className="flex gap-2 overflow-x-auto pb-2 -mx-2 px-2">
-                {next7Days.map((date) => {
+                {next14Days.map((date) => {
                   const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
                   const isToday = format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
                   
@@ -400,19 +422,21 @@ function NewAppointmentContent() {
             
             <div className="space-y-4">
               <div className="flex items-center gap-4 p-4 bg-[var(--bg-secondary)] rounded-xl">
-                <ClientAvatar name={selectedClient?.name || ''} />
+                <ClientAvatar name={selectedCliente?.nome || ''} />
                 <div>
-                  <p className="text-sm font-medium text-[var(--text-primary)]">{selectedClient?.name}</p>
-                  <p className="text-xs text-[var(--text-muted)]">{selectedClient?.phone}</p>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{selectedCliente?.nome}</p>
+                  <p className="text-xs text-[var(--text-muted)]">{selectedCliente?.telefone}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-[var(--bg-secondary)] rounded-xl">
                   <p className="text-xs text-[var(--text-muted)] mb-1">Serviço</p>
-                  <p className="text-sm font-medium text-[var(--text-primary)]">{selectedService?.name}</p>
-                  <p className="text-lg font-bold text-[var(--accent)] mt-1">
-                    R$ {selectedService?.price.toFixed(2)}
+                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                    {selectedServico ? SERVICOS[selectedServico].label : ''}
+                  </p>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">
+                    {selectedServico ? SERVICOS[selectedServico].duracao : 0} min
                   </p>
                 </div>
                 <div className="p-4 bg-[var(--bg-secondary)] rounded-xl">
@@ -424,13 +448,6 @@ function NewAppointmentContent() {
                     {selectedTime}
                   </p>
                 </div>
-              </div>
-
-              <div className="p-4 bg-[var(--bg-secondary)] rounded-xl">
-                <p className="text-xs text-[var(--text-muted)] mb-1">Duração estimada</p>
-                <p className="text-sm font-medium text-[var(--text-primary)]">
-                  {selectedService?.duration} minutos
-                </p>
               </div>
             </div>
           </div>
@@ -463,9 +480,20 @@ function NewAppointmentContent() {
         ) : (
           <button
             onClick={handleConfirm}
-            className="flex-1 px-4 py-3 bg-[var(--accent)] text-white font-medium text-sm rounded-xl hover:bg-[var(--accent-hover)] active:scale-[0.97] transition-all duration-200"
+            disabled={isSubmitting}
+            className={cn(
+              "flex-1 px-4 py-3 bg-[var(--accent)] text-white font-medium text-sm rounded-xl hover:bg-[var(--accent-hover)] active:scale-[0.97] transition-all duration-200",
+              isSubmitting && "opacity-70 cursor-not-allowed"
+            )}
           >
-            Confirmar Agendamento
+            {isSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Confirmando...
+              </span>
+            ) : (
+              'Confirmar Agendamento'
+            )}
           </button>
         )}
       </div>
@@ -483,8 +511,8 @@ function NewAppointmentContent() {
             </label>
             <input
               type="text"
-              value={newClientData.name}
-              onChange={(e) => setNewClientData({ ...newClientData, name: e.target.value })}
+              value={newClientData.nome}
+              onChange={(e) => setNewClientData({ ...newClientData, nome: e.target.value })}
               className="w-full px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
               placeholder="Ex: João Pedro Santos"
             />
@@ -495,11 +523,12 @@ function NewAppointmentContent() {
             </label>
             <input
               type="tel"
-              value={newClientData.phone}
-              onChange={(e) => setNewClientData({ ...newClientData, phone: e.target.value })}
+              value={newClientData.telefone}
+              onChange={(e) => setNewClientData({ ...newClientData, telefone: e.target.value })}
               className="w-full px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
-              placeholder="(11) 99999-9999"
+              placeholder="11999999999"
             />
+            <p className="text-xs text-[var(--text-muted)] mt-1">Apenas números, mínimo 8 dígitos</p>
           </div>
           <div className="flex gap-3 pt-2">
             <button
@@ -510,10 +539,10 @@ function NewAppointmentContent() {
             </button>
             <button
               onClick={handleCreateClient}
-              disabled={!newClientData.name || !newClientData.phone}
+              disabled={!newClientData.nome || !newClientData.telefone || isSubmitting}
               className="flex-1 px-4 py-2.5 bg-[var(--accent)] text-white font-medium text-sm rounded-lg hover:bg-[var(--accent-hover)] disabled:opacity-50 transition-all"
             >
-              Criar e Selecionar
+              {isSubmitting ? 'Criando...' : 'Criar e Selecionar'}
             </button>
           </div>
         </div>

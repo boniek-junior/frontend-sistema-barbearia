@@ -1,31 +1,39 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Store, Clock, Lock, Camera } from 'lucide-react'
-import { useStore } from '@/lib/store'
+import { Store, Clock, Info } from 'lucide-react'
 import { useToast } from '@/components/toast'
-import { mockWorkingHours } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
+
+interface WorkingHours {
+  day: number
+  active: boolean
+  start: string
+  end: string
+}
 
 const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
+const defaultWorkingHours: WorkingHours[] = [
+  { day: 0, active: false, start: '09:00', end: '18:00' },
+  { day: 1, active: true, start: '08:00', end: '18:00' },
+  { day: 2, active: true, start: '08:00', end: '18:00' },
+  { day: 3, active: true, start: '08:00', end: '18:00' },
+  { day: 4, active: true, start: '08:00', end: '18:00' },
+  { day: 5, active: true, start: '08:00', end: '18:00' },
+  { day: 6, active: true, start: '08:00', end: '17:00' },
+]
+
 export default function ConfiguracoesPage() {
-  const { barber } = useStore()
   const { showToast } = useToast()
   
   const [shopData, setShopData] = useState({
-    name: barber.shopName,
-    phone: barber.phone,
-    address: barber.address || '',
+    name: 'Barbearia',
+    phone: '',
+    address: '',
   })
   
-  const [workingHours, setWorkingHours] = useState(mockWorkingHours)
-  
-  const [passwords, setPasswords] = useState({
-    current: '',
-    new: '',
-    confirm: '',
-  })
+  const [workingHours, setWorkingHours] = useState(defaultWorkingHours)
 
   const handleSaveShop = () => {
     showToast('success', 'Dados da barbearia atualizados!')
@@ -33,20 +41,6 @@ export default function ConfiguracoesPage() {
 
   const handleSaveHours = () => {
     showToast('success', 'Horários de funcionamento salvos!')
-  }
-
-  const handleChangePassword = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (passwords.new !== passwords.confirm) {
-      showToast('error', 'As senhas não coincidem')
-      return
-    }
-    if (passwords.new.length < 6) {
-      showToast('error', 'A senha deve ter pelo menos 6 caracteres')
-      return
-    }
-    showToast('success', 'Senha alterada com sucesso!')
-    setPasswords({ current: '', new: '', confirm: '' })
   }
 
   const toggleDayActive = (dayIndex: number) => {
@@ -69,31 +63,6 @@ export default function ConfiguracoesPage() {
           Configurações
         </h1>
       </header>
-
-      {/* Profile Section */}
-      <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6 mb-6">
-        <div className="flex items-center gap-4 mb-6">
-          <User className="w-5 h-5 text-[var(--accent)]" />
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Perfil</h2>
-        </div>
-        
-        <div className="flex items-center gap-4 mb-6">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-[var(--accent)] flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">
-                {barber.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-              </span>
-            </div>
-            <button className="absolute -bottom-1 -right-1 w-8 h-8 bg-[var(--bg-primary)] border border-[var(--border)] rounded-full flex items-center justify-center hover:bg-[var(--bg-secondary)] transition-colors">
-              <Camera className="w-4 h-4 text-[var(--text-secondary)]" />
-            </button>
-          </div>
-          <div>
-            <p className="text-lg font-semibold text-[var(--text-primary)]">{barber.name}</p>
-            <p className="text-sm text-[var(--text-muted)]">{barber.email}</p>
-          </div>
-        </div>
-      </section>
 
       {/* Shop Data Section */}
       <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6 mb-6">
@@ -124,6 +93,7 @@ export default function ConfiguracoesPage() {
               value={shopData.phone}
               onChange={(e) => setShopData({ ...shopData, phone: e.target.value })}
               className="w-full px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
+              placeholder="(00) 00000-0000"
             />
           </div>
           
@@ -217,57 +187,16 @@ export default function ConfiguracoesPage() {
         </button>
       </section>
 
-      {/* Security Section */}
+      {/* Info */}
       <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <Lock className="w-5 h-5 text-[var(--accent)]" />
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Segurança</h2>
+        <div className="flex items-center gap-4 mb-4">
+          <Info className="w-5 h-5 text-[var(--accent)]" />
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Sobre o Sistema</h2>
         </div>
-        
-        <form onSubmit={handleChangePassword} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
-              Senha atual
-            </label>
-            <input
-              type="password"
-              value={passwords.current}
-              onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
-              className="w-full px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
-              Nova senha
-            </label>
-            <input
-              type="password"
-              value={passwords.new}
-              onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
-              className="w-full px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
-              Confirmar nova senha
-            </label>
-            <input
-              type="password"
-              value={passwords.confirm}
-              onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
-              className="w-full px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
-            />
-          </div>
-          
-          <button
-            type="submit"
-            className="px-4 py-2.5 bg-[var(--accent)] text-white font-medium text-sm rounded-lg hover:bg-[var(--accent-hover)] active:scale-[0.97] transition-all duration-200"
-          >
-            Alterar Senha
-          </button>
-        </form>
+        <p className="text-sm text-[var(--text-muted)]">
+          BarberPro — Sistema de gestão para barbearias. Os horários de funcionamento configurados aqui são usados como referência visual. 
+          O backend controla os horários permitidos via configuração do servidor (HORARIO_ABERTURA e HORARIO_FECHAMENTO).
+        </p>
       </section>
     </div>
   )

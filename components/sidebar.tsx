@@ -12,9 +12,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  LogOut
 } from 'lucide-react'
-import { useStore } from '@/lib/store'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -27,7 +25,6 @@ const navItems = [
 export function Sidebar() {
   const [expanded, setExpanded] = useState(true)
   const pathname = usePathname()
-  const { barber } = useStore()
 
   return (
     <aside 
@@ -98,7 +95,7 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* User Profile */}
+      {/* Footer */}
       <div className={cn(
         "border-t border-[var(--border)] p-3",
         !expanded && "flex justify-center"
@@ -108,30 +105,19 @@ export function Sidebar() {
           !expanded && "justify-center"
         )}>
           <div className="w-10 h-10 rounded-full bg-[var(--accent)] flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-semibold text-sm">
-              {barber.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-            </span>
+            <Scissors className="w-5 h-5 text-white" />
           </div>
           {expanded && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-                {barber.name}
+                BarberPro
               </p>
               <p className="text-xs text-[var(--text-muted)] truncate">
-                {barber.shopName}
+                Sistema de Gestão
               </p>
             </div>
           )}
         </div>
-        {expanded && (
-          <Link
-            href="/"
-            className="mt-3 flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--danger-light)] rounded-lg transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sair</span>
-          </Link>
-        )}
       </div>
     </aside>
   )

@@ -2,40 +2,44 @@
 
 import { useMemo } from 'react'
 import Link from 'next/link'
-import { format } from 'date-fns'
+import { format, parseISO, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Calendar, Users, Clock, ArrowRight, Plus } from 'lucide-react'
+import { Calendar, Users, Clock, ArrowRight, Plus, Loader2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { KpiCard } from '@/components/kpi-card'
 import { AppointmentCard } from '@/components/appointment-card'
 import { EmptyState } from '@/components/empty-state'
+import { AppointmentDetailsModal } from '@/components/appointment-details-modal'
+import { Agendamento } from '@/lib/types'
+import { useState } from 'react'
 
 export default function DashboardPage() {
-  const { barber, appointments, clients } = useStore()
+  const { agendamentos, loading } = useStore()
+  const [selectedAppointment, setSelectedAppointment] = useState<Agendamento | null>(null)
   
   const today = new Date()
-  const todayStr = format(today, 'yyyy-MM-dd')
   
   const todayAppointments = useMemo(() => {
-    return appointments
-      .filter(a => a.date === todayStr)
-      .sort((a, b) => a.time.localeCompare(b.time))
-  }, [appointments, todayStr])
+    return agendamentos
+      .filter(a => isSameDay(parseISO(a.inicio), today))
+      .sort((a, b) => a.inicio.localeCompare(b.inicio))
+  }, [agendamentos, today])
 
   const kpis = useMemo(() => {
     const todayCount = todayAppointments.length
-    const completedThisMonth = appointments.filter(a => 
+    const currentMonth = format(today, 'yyyy-MM')
+    const completedThisMonth = agendamentos.filter(a => 
       a.status === 'concluido' && 
-      a.date.startsWith(format(today, 'yyyy-MM'))
+      a.inicio.startsWith(currentMonth)
     ).length
-    const freeSlots = 10 - todayCount // Assuming 10 slots per day
+    const freeSlots = 10 - todayCount
 
     return {
       todayCount,
       completedThisMonth,
       freeSlots: Math.max(0, freeSlots),
     }
-  }, [todayAppointments, appointments, today])
+  }, [todayAppointments, agendamentos, today])
 
   const greeting = useMemo(() => {
     const hour = today.getHours()
@@ -44,12 +48,20 @@ export default function DashboardPage() {
     return 'Boa noite'
   }, [today])
 
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[var(--accent)] animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 lg:p-8 max-w-5xl mx-auto">
       {/* Header */}
       <header className="mb-8">
         <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
-          {greeting}, {barber.name.split(' ')[0]}
+          {greeting}
         </h1>
         <p className="text-[var(--text-secondary)] mt-1 capitalize">
           {format(today, "EEEE, d 'de' MMMM", { locale: ptBR })}
@@ -67,7 +79,6 @@ export default function DashboardPage() {
           title="Atendidos no Mês" 
           value={kpis.completedThisMonth}
           icon={Users}
-          trend={{ value: 12, positive: true }}
         />
         <KpiCard 
           title="Horários Livres" 
@@ -97,6 +108,7 @@ export default function DashboardPage() {
               <AppointmentCard 
                 key={appointment.id} 
                 appointment={appointment}
+                onClick={() => setSelectedAppointment(appointment)}
               />
             ))}
           </div>
@@ -130,6 +142,12 @@ export default function DashboardPage() {
           <span className="font-medium">Ver Clientes</span>
         </Link>
       </section>
+
+      <AppointmentDetailsModal 
+        appointment={selectedAppointment}
+        isOpen={!!selectedAppointment}
+        onClose={() => setSelectedAppointment(null)}
+      />
     </div>
   )
 }

@@ -1,103 +1,119 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
-import { Client, Service, Appointment, Barber, AppointmentStatus } from './types'
-import { mockBarber, mockClients, mockServices, mockAppointments } from './mock-data'
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
+import { Cliente, Agendamento, AppointmentStatus, TipoServico } from './types'
+import { clientesApi, agendamentosApi } from './api'
 
 interface StoreContextType {
-  barber: Barber
-  clients: Client[]
-  services: Service[]
-  appointments: Appointment[]
-  addClient: (client: Omit<Client, 'id' | 'createdAt' | 'totalVisits'>) => Client
-  updateClient: (id: string, data: Partial<Client>) => void
-  addAppointment: (appointment: Omit<Appointment, 'id' | 'createdAt'>) => Appointment
-  updateAppointmentStatus: (id: string, status: AppointmentStatus) => void
-  addService: (service: Omit<Service, 'id'>) => Service
-  updateService: (id: string, data: Partial<Service>) => void
-  toggleServiceActive: (id: string) => void
+  // Dados
+  clientes: Cliente[]
+  agendamentos: Agendamento[]
+  loading: boolean
+  error: string | null
+
+  // Clientes
+  addCliente: (dados: { nome: string; telefone: string }) => Promise<Cliente>
+  updateCliente: (id: number, dados: { nome?: string; telefone?: string }) => Promise<void>
+  deleteCliente: (id: number) => Promise<void>
+
+  // Agendamentos
+  addAgendamento: (dados: { cliente_id: number; inicio: string; servico: TipoServico }) => Promise<Agendamento>
+  updateAgendamentoStatus: (id: number, status: AppointmentStatus) => Promise<void>
+  deleteAgendamento: (id: number) => Promise<void>
+
+  // Refresh
+  refreshClientes: () => Promise<void>
+  refreshAgendamentos: () => Promise<void>
 }
 
 const StoreContext = createContext<StoreContextType | null>(null)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [barber] = useState<Barber>(mockBarber)
-  const [clients, setClients] = useState<Client[]>(mockClients)
-  const [services, setServices] = useState<Service[]>(mockServices)
-  const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments)
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const addClient = useCallback((clientData: Omit<Client, 'id' | 'createdAt' | 'totalVisits'>) => {
-    const newClient: Client = {
-      ...clientData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString().split('T')[0],
-      totalVisits: 0,
+  // ─── Fetch inicial ─────────────────────────────────────────────────────────
+
+  const refreshClientes = useCallback(async () => {
+    try {
+      const data = await clientesApi.listar()
+      setClientes(data)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar clientes')
     }
-    setClients(prev => [...prev, newClient])
-    return newClient
   }, [])
 
-  const updateClient = useCallback((id: string, data: Partial<Client>) => {
-    setClients(prev => prev.map(c => c.id === id ? { ...c, ...data } : c))
-  }, [])
-
-  const addAppointment = useCallback((appointmentData: Omit<Appointment, 'id' | 'createdAt'>) => {
-    const newAppointment: Appointment = {
-      ...appointmentData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString().split('T')[0],
+  const refreshAgendamentos = useCallback(async () => {
+    try {
+      const data = await agendamentosApi.listar()
+      setAgendamentos(data)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar agendamentos')
     }
-    setAppointments(prev => [...prev, newAppointment])
-    
-    // Update client's visit count and last visit
-    setClients(prev => prev.map(c => 
-      c.id === appointmentData.clientId 
-        ? { 
-            ...c, 
-            totalVisits: c.totalVisits + 1, 
-            lastVisit: appointmentData.date,
-            favoriteService: appointmentData.service.name 
-          } 
-        : c
-    ))
-    
-    return newAppointment
   }, [])
 
-  const updateAppointmentStatus = useCallback((id: string, status: AppointmentStatus) => {
-    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a))
-  }, [])
-
-  const addService = useCallback((serviceData: Omit<Service, 'id'>) => {
-    const newService: Service = {
-      ...serviceData,
-      id: Date.now().toString(),
+  useEffect(() => {
+    async function loadAll() {
+      setLoading(true)
+      setError(null)
+      await Promise.all([refreshClientes(), refreshAgendamentos()])
+      setLoading(false)
     }
-    setServices(prev => [...prev, newService])
-    return newService
+    loadAll()
+  }, [refreshClientes, refreshAgendamentos])
+
+  // ─── Clientes ──────────────────────────────────────────────────────────────
+
+  const addCliente = useCallback(async (dados: { nome: string; telefone: string }) => {
+    const novoCliente = await clientesApi.criar(dados)
+    setClientes(prev => [...prev, novoCliente])
+    return novoCliente
   }, [])
 
-  const updateService = useCallback((id: string, data: Partial<Service>) => {
-    setServices(prev => prev.map(s => s.id === id ? { ...s, ...data } : s))
+  const updateCliente = useCallback(async (id: number, dados: { nome?: string; telefone?: string }) => {
+    const atualizado = await clientesApi.atualizar(id, dados)
+    setClientes(prev => prev.map(c => c.id === id ? atualizado : c))
   }, [])
 
-  const toggleServiceActive = useCallback((id: string) => {
-    setServices(prev => prev.map(s => s.id === id ? { ...s, active: !s.active } : s))
+  const deleteCliente = useCallback(async (id: number) => {
+    await clientesApi.deletar(id)
+    setClientes(prev => prev.filter(c => c.id !== id))
+  }, [])
+
+  // ─── Agendamentos ──────────────────────────────────────────────────────────
+
+  const addAgendamento = useCallback(async (dados: { cliente_id: number; inicio: string; servico: TipoServico }) => {
+    const novo = await agendamentosApi.criar(dados)
+    setAgendamentos(prev => [...prev, novo])
+    return novo
+  }, [])
+
+  const updateAgendamentoStatus = useCallback(async (id: number, status: AppointmentStatus) => {
+    const atualizado = await agendamentosApi.atualizarStatus(id, status)
+    setAgendamentos(prev => prev.map(a => a.id === id ? atualizado : a))
+  }, [])
+
+  const deleteAgendamento = useCallback(async (id: number) => {
+    await agendamentosApi.deletar(id)
+    setAgendamentos(prev => prev.filter(a => a.id !== id))
   }, [])
 
   return (
     <StoreContext.Provider value={{
-      barber,
-      clients,
-      services,
-      appointments,
-      addClient,
-      updateClient,
-      addAppointment,
-      updateAppointmentStatus,
-      addService,
-      updateService,
-      toggleServiceActive,
+      clientes,
+      agendamentos,
+      loading,
+      error,
+      addCliente,
+      updateCliente,
+      deleteCliente,
+      addAgendamento,
+      updateAgendamentoStatus,
+      deleteAgendamento,
+      refreshClientes,
+      refreshAgendamentos,
     }}>
       {children}
     </StoreContext.Provider>

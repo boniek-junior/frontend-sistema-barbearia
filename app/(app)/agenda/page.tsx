@@ -1,16 +1,16 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, parseISO } from 'date-fns'
+import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay, parseISO, addMonths, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Plus, Calendar } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Calendar, Loader2 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { AppointmentCard } from '@/components/appointment-card'
-import { StatusBadge } from '@/components/status-badge'
 import { EmptyState } from '@/components/empty-state'
+import { AppointmentDetailsModal } from '@/components/appointment-details-modal'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { AppointmentStatus } from '@/lib/types'
+import { AppointmentStatus, SERVICOS, Agendamento } from '@/lib/types'
 
 type ViewMode = 'semana' | 'mes'
 type StatusFilter = 'todos' | AppointmentStatus
@@ -23,7 +23,8 @@ const timeSlots = [
 ]
 
 export default function AgendaPage() {
-  const { appointments } = useStore()
+  const { agendamentos, loading } = useStore()
+  const [selectedAppointment, setSelectedAppointment] = useState<Agendamento | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('semana')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -33,28 +34,42 @@ export default function AgendaPage() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
   const filteredAppointments = useMemo(() => {
-    let filtered = appointments
+    let filtered = agendamentos
     if (statusFilter !== 'todos') {
       filtered = filtered.filter(a => a.status === statusFilter)
     }
     return filtered
-  }, [appointments, statusFilter])
+  }, [agendamentos, statusFilter])
 
   const getAppointmentsForDate = (date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd')
-    return filteredAppointments.filter(a => a.date === dateStr)
+    return filteredAppointments.filter(a => isSameDay(parseISO(a.inicio), date))
   }
 
   const getAppointmentForSlot = (date: Date, time: string) => {
-    const dateStr = format(date, 'yyyy-MM-dd')
-    return appointments.find(a => a.date === dateStr && a.time === time)
+    return filteredAppointments.find(a => {
+      const aDate = parseISO(a.inicio)
+      return isSameDay(aDate, date) && format(aDate, 'HH:mm') === time
+    })
   }
 
   const navigateWeek = (direction: 'prev' | 'next') => {
-    setCurrentDate(prev => direction === 'next' ? addWeeks(prev, 1) : subWeeks(prev, 1))
+    setCurrentDate(prev => {
+      if (viewMode === 'mes') {
+        return direction === 'next' ? addMonths(prev, 1) : subMonths(prev, 1)
+      }
+      return direction === 'next' ? addWeeks(prev, 1) : subWeeks(prev, 1)
+    })
   }
 
   const selectedDateAppointments = selectedDate ? getAppointmentsForDate(selectedDate) : []
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[var(--accent)] animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 lg:p-8">
@@ -95,7 +110,7 @@ export default function AgendaPage() {
 
         {/* Status Filter */}
         <div className="flex gap-2 flex-wrap">
-          {(['todos', 'confirmado', 'concluido', 'cancelado'] as StatusFilter[]).map((status) => (
+          {(['todos', 'pendente', 'confirmado', 'concluido', 'cancelado'] as StatusFilter[]).map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
@@ -179,6 +194,7 @@ export default function AgendaPage() {
                 </div>
                 {weekDays.map((day, i) => {
                   const appointment = getAppointmentForSlot(day, time)
+                  const servico = appointment ? SERVICOS[appointment.servico] : null
                   return (
                     <div 
                       key={i}
@@ -188,14 +204,17 @@ export default function AgendaPage() {
                       )}
                     >
                       {appointment ? (
-                        <div className="absolute inset-1 bg-[var(--accent-light)] border border-[var(--accent)] rounded-lg p-2 overflow-hidden">
+                        <button 
+                          onClick={() => setSelectedAppointment(appointment)}
+                          className="absolute inset-1 bg-[var(--accent-light)] border border-[var(--accent)] rounded-lg p-2 overflow-hidden text-left"
+                        >
                           <p className="text-xs font-medium text-[var(--accent)] truncate">
-                            {appointment.client.name}
+                            {appointment.cliente.nome}
                           </p>
                           <p className="text-xs text-[var(--text-muted)] truncate">
-                            {appointment.service.name}
+                            {servico?.label || appointment.servico}
                           </p>
-                        </div>
+                        </button>
                       ) : (
                         <Link
                           href="/novo-agendamento"
@@ -221,9 +240,13 @@ export default function AgendaPage() {
                 {selectedDateAppointments.length > 0 ? (
                   <div className="space-y-3">
                     {selectedDateAppointments
-                      .sort((a, b) => a.time.localeCompare(b.time))
+                      .sort((a, b) => a.inicio.localeCompare(b.inicio))
                       .map((appointment) => (
-                        <AppointmentCard key={appointment.id} appointment={appointment} />
+                        <AppointmentCard 
+                          key={appointment.id} 
+                          appointment={appointment} 
+                          onClick={() => setSelectedAppointment(appointment)}
+                        />
                       ))}
                   </div>
                 ) : (
@@ -265,9 +288,13 @@ export default function AgendaPage() {
               {selectedDateAppointments.length > 0 ? (
                 <div className="space-y-3">
                   {selectedDateAppointments
-                    .sort((a, b) => a.time.localeCompare(b.time))
+                    .sort((a, b) => a.inicio.localeCompare(b.inicio))
                     .map((appointment) => (
-                      <AppointmentCard key={appointment.id} appointment={appointment} />
+                      <AppointmentCard 
+                        key={appointment.id} 
+                        appointment={appointment} 
+                        onClick={() => setSelectedAppointment(appointment)}
+                      />
                     ))}
                 </div>
               ) : (
@@ -279,9 +306,17 @@ export default function AgendaPage() {
           )}
         </div>
       )}
+
+      <AppointmentDetailsModal 
+        appointment={selectedAppointment}
+        isOpen={!!selectedAppointment}
+        onClose={() => setSelectedAppointment(null)}
+      />
     </div>
   )
 }
+
+import { Agendamento } from '@/lib/types'
 
 function MonthView({ 
   currentDate, 
@@ -290,7 +325,7 @@ function MonthView({
   selectedDate 
 }: { 
   currentDate: Date
-  appointments: typeof import('@/lib/mock-data').mockAppointments
+  appointments: Agendamento[]
   onSelectDate: (date: Date) => void
   selectedDate: Date | null
 }) {
@@ -301,7 +336,7 @@ function MonthView({
   const lastDay = new Date(year, month + 1, 0)
   const startPadding = (firstDay.getDay() + 6) % 7 // Monday = 0
   
-  const days = []
+  const days: (Date | null)[] = []
   for (let i = 0; i < startPadding; i++) {
     days.push(null)
   }
@@ -310,8 +345,7 @@ function MonthView({
   }
 
   const hasAppointments = (date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd')
-    return appointments.some(a => a.date === dateStr)
+    return appointments.some(a => isSameDay(parseISO(a.inicio), date))
   }
 
   return (

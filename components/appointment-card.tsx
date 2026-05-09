@@ -1,17 +1,21 @@
 'use client'
 
-import { Appointment } from '@/lib/types'
+import { format, parseISO } from 'date-fns'
+import { Agendamento, SERVICOS } from '@/lib/types'
 import { ClientAvatar } from './client-avatar'
 import { StatusBadge } from './status-badge'
 import { cn } from '@/lib/utils'
 
 interface AppointmentCardProps {
-  appointment: Appointment
+  appointment: Agendamento
   onClick?: () => void
   className?: string
 }
 
 export function AppointmentCard({ appointment, onClick, className }: AppointmentCardProps) {
+  const hora = format(parseISO(appointment.inicio), 'HH:mm')
+  const servico = SERVICOS[appointment.servico]
+
   return (
     <button
       onClick={onClick}
@@ -24,20 +28,20 @@ export function AppointmentCard({ appointment, onClick, className }: Appointment
     >
       <div className="flex-shrink-0">
         <span className="font-mono text-lg font-medium text-[var(--text-primary)]">
-          {appointment.time}
+          {hora}
         </span>
       </div>
       
       <div className="w-px h-10 bg-[var(--border)]" />
       
-      <ClientAvatar name={appointment.client.name} size="md" />
+      <ClientAvatar name={appointment.cliente.nome} size="md" />
       
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-          {appointment.client.name}
+          {appointment.cliente.nome}
         </p>
         <p className="text-xs text-[var(--text-secondary)] truncate">
-          {appointment.service.name}
+          {servico?.label || appointment.servico}
         </p>
       </div>
       
