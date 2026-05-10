@@ -45,6 +45,11 @@ export default function ClientesPage() {
     
     const newErrors: Record<string, string> = {}
     if (!formData.nome.trim()) newErrors.nome = 'Nome é obrigatório'
+    else {
+      // API exige pelo menos nome e sobrenome
+      const partes = formData.nome.trim().split(/\s+/)
+      if (partes.length < 2) newErrors.nome = 'Nome deve conter pelo menos nome e sobrenome'
+    }
     if (!formData.telefone.trim()) newErrors.telefone = 'Telefone é obrigatório'
     else {
       // API exige apenas dígitos, min 8 chars

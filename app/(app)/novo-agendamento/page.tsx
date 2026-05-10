@@ -24,7 +24,7 @@ const timeSlots = [
   '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
   '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-  '17:00', '17:30', '18:00', '18:30', '19:00',
+  '17:00', '17:30', '18:00',
 ]
 
 function NewAppointmentContent() {
@@ -81,11 +81,23 @@ function NewAppointmentContent() {
   const handleCreateClient = async () => {
     if (!newClientData.nome || !newClientData.telefone) return
     
+    // Validações
+    const partesNome = newClientData.nome.trim().split(/\s+/)
+    if (partesNome.length < 2) {
+      showToast('error', 'Nome deve conter pelo menos nome e sobrenome')
+      return
+    }
+    const digitsOnly = newClientData.telefone.replace(/\D/g, '')
+    if (digitsOnly.length < 8) {
+      showToast('error', 'Telefone deve ter pelo menos 8 dígitos')
+      return
+    }
+    
     setIsSubmitting(true)
     try {
       const novoCliente = await addCliente({
         nome: newClientData.nome.trim(),
-        telefone: newClientData.telefone.replace(/\D/g, ''),
+        telefone: digitsOnly,
       })
       
       setSelectedCliente(novoCliente)
@@ -109,6 +121,25 @@ function NewAppointmentContent() {
       const [hours, minutes] = selectedTime.split(':')
       const inicio = new Date(selectedDate)
       inicio.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+
+      // Validar se não é no passado
+      if (inicio < new Date()) {
+        showToast('error', 'Não é possível agendar para um horário no passado')
+        setIsSubmitting(false)
+        return
+      }
+
+      // Validar se o agendamento cabe no horário de funcionamento
+      const duracao = SERVICOS[selectedServico].duracao
+      const fim = new Date(inicio.getTime() + duracao * 60000)
+      const fechamento = new Date(inicio)
+      fechamento.setHours(18, 0, 0, 0)
+      
+      if (fim > fechamento) {
+        showToast('error', 'Este horário não está disponível (ultrapassa o horário de fechamento)')
+        setIsSubmitting(false)
+        return
+      }
 
       await addAgendamento({
         cliente_id: selectedCliente.id,
