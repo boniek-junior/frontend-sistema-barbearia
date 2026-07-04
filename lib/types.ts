@@ -20,7 +20,7 @@ export interface Agendamento {
 
 // Mapa local de serviços — espelha o enum TipoServico do backend
 export const SERVICOS: Record<TipoServico, { label: string; duracao: number }> = {
-  corte: { label: 'Corte', duracao: 40 },
+  corte: { label: 'Corte', duracao: 30 },
   barba: { label: 'Barba', duracao: 30 },
   corte_e_barba: { label: 'Corte e Barba', duracao: 70 },
   sobrancelha: { label: 'Sobrancelha', duracao: 20 },
