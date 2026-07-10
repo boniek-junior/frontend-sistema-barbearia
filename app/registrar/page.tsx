@@ -1,23 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Scissors, Loader2 } from 'lucide-react'
-import { login, isAuthenticated } from '@/lib/auth'
+import { registrar, login } from '@/lib/auth'
 
-export default function LoginPage() {
+export default function RegistrarPage() {
   const router = useRouter()
+  const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
-
-  useEffect(() => {
-    if (isAuthenticated()) {
-      router.replace('/dashboard')
-    }
-  }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -25,10 +20,12 @@ export default function LoginPage() {
     setCarregando(true)
 
     try {
+      await registrar(nome, email, senha)
+      // Após criar a conta, já faz login automaticamente
       await login(email, senha)
       router.replace('/dashboard')
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro ao fazer login')
+      setErro(err instanceof Error ? err.message : 'Erro ao criar conta')
     } finally {
       setCarregando(false)
     }
@@ -42,10 +39,10 @@ export default function LoginPage() {
             <Scissors className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">
-            BarberPro
+            Criar conta
           </h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">
-            Entre com sua conta
+            Cadastre-se para usar o BarberPro
           </p>
         </div>
 
@@ -53,6 +50,20 @@ export default function LoginPage() {
           onSubmit={handleSubmit}
           className="bg-[var(--bg-primary)] rounded-2xl p-6 shadow-sm border border-[var(--border)] flex flex-col gap-4"
         >
+          <div>
+            <label className="text-sm font-medium text-[var(--text-secondary)]">
+              Nome
+            </label>
+            <input
+              type="text"
+              required
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              placeholder="Seu nome"
+            />
+          </div>
+
           <div>
             <label className="text-sm font-medium text-[var(--text-secondary)]">
               E-mail
@@ -74,10 +85,11 @@ export default function LoginPage() {
             <input
               type="password"
               required
+              minLength={6}
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-              placeholder="••••••••"
+              placeholder="Mínimo 6 caracteres"
             />
           </div>
 
@@ -93,14 +105,14 @@ export default function LoginPage() {
             className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-medium rounded-lg py-2.5 flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
           >
             {carregando && <Loader2 className="w-4 h-4 animate-spin" />}
-            Entrar
+            Criar conta
           </button>
         </form>
 
         <p className="text-center text-sm text-[var(--text-muted)] mt-4">
-          Ainda não tem conta?{' '}
-          <Link href="/registrar" className="text-[var(--accent)] font-medium hover:underline">
-            Criar conta
+          Já tem conta?{' '}
+          <Link href="/" className="text-[var(--accent)] font-medium hover:underline">
+            Entrar
           </Link>
         </p>
       </div>

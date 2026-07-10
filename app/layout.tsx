@@ -18,10 +18,16 @@ const dmMono = DM_Mono({
 export const metadata: Metadata = {
   title: 'BarberPro - Gestão de Barbearia',
   description: 'Sistema de gerenciamento de clientes e agendamentos para barbearias',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'BarberPro',
+  },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#FFFFFF',
+  themeColor: '#2563EB',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,

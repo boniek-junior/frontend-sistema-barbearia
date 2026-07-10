@@ -1,23 +1,33 @@
 import { Cliente, Agendamento, AppointmentStatus, TipoServico } from './types'
+import { getToken, logout } from './auth'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
 // ─── Helper ────────────────────────────────────────────────────────────────────
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  console.log(`[API Request] ${options?.method || 'GET'} ${path}`, options?.body ? JSON.parse(options.body as string) : '')
-  
+  const token = getToken()
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
     ...options,
   })
+
+  // Sessao expirada ou nao autenticado: desloga e volta pro login
+  if (res.status === 401) {
+    logout()
+    throw new Error('Sessao expirada, faca login novamente')
+  }
 
   // DELETE retorna 204 sem body
   if (res.status === 204) return undefined as unknown as T
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    console.error(`[API Error] ${res.status}`, body)
     throw new Error(body.detail || `Erro ${res.status}`)
   }
 

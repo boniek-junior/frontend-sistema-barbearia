@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Store, Clock, Info } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Store, Clock, Info, LogOut } from 'lucide-react'
 import { useToast } from '@/components/toast'
 import { cn } from '@/lib/utils'
+import { logout } from '@/lib/auth'
 
 interface WorkingHours {
   day: number
@@ -26,13 +28,14 @@ const defaultWorkingHours: WorkingHours[] = [
 
 export default function ConfiguracoesPage() {
   const { showToast } = useToast()
-  
+  const router = useRouter()
+
   const [shopData, setShopData] = useState({
     name: 'Barbearia',
     phone: '',
     address: '',
   })
-  
+
   const [workingHours, setWorkingHours] = useState(defaultWorkingHours)
 
   const handleSaveShop = () => {
@@ -44,13 +47,13 @@ export default function ConfiguracoesPage() {
   }
 
   const toggleDayActive = (dayIndex: number) => {
-    setWorkingHours(prev => prev.map((h, i) => 
+    setWorkingHours(prev => prev.map((h, i) =>
       i === dayIndex ? { ...h, active: !h.active } : h
     ))
   }
 
   const updateDayHours = (dayIndex: number, field: 'start' | 'end', value: string) => {
-    setWorkingHours(prev => prev.map((h, i) => 
+    setWorkingHours(prev => prev.map((h, i) =>
       i === dayIndex ? { ...h, [field]: value } : h
     ))
   }
@@ -70,7 +73,7 @@ export default function ConfiguracoesPage() {
           <Store className="w-5 h-5 text-[var(--accent)]" />
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">Dados da Barbearia</h2>
         </div>
-        
+
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
@@ -83,7 +86,7 @@ export default function ConfiguracoesPage() {
               className="w-full px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
               Telefone
@@ -96,7 +99,7 @@ export default function ConfiguracoesPage() {
               placeholder="(00) 00000-0000"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-[var(--text-primary)] mb-1.5">
               Endereço
@@ -109,7 +112,7 @@ export default function ConfiguracoesPage() {
               placeholder="Rua, número - Bairro"
             />
           </div>
-          
+
           <button
             onClick={handleSaveShop}
             className="px-4 py-2.5 bg-[var(--accent)] text-white font-medium text-sm rounded-lg hover:bg-[var(--accent-hover)] active:scale-[0.97] transition-all duration-200"
@@ -125,7 +128,7 @@ export default function ConfiguracoesPage() {
           <Clock className="w-5 h-5 text-[var(--accent)]" />
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">Horário de Funcionamento</h2>
         </div>
-        
+
         <div className="space-y-3">
           {workingHours.map((day, index) => (
             <div
@@ -149,11 +152,11 @@ export default function ConfiguracoesPage() {
                   )}
                 />
               </button>
-              
+
               <span className="text-sm font-medium text-[var(--text-primary)] w-20">
                 {dayNames[index]}
               </span>
-              
+
               {day.active && (
                 <div className="flex items-center gap-2 flex-1">
                   <input
@@ -171,19 +174,33 @@ export default function ConfiguracoesPage() {
                   />
                 </div>
               )}
-              
+
               {!day.active && (
                 <span className="text-sm text-[var(--text-muted)]">Fechado</span>
               )}
             </div>
           ))}
         </div>
-        
+
         <button
           onClick={handleSaveHours}
           className="mt-4 px-4 py-2.5 bg-[var(--accent)] text-white font-medium text-sm rounded-lg hover:bg-[var(--accent-hover)] active:scale-[0.97] transition-all duration-200"
         >
           Salvar Horários
+        </button>
+      </section>
+
+      {/* Conta */}
+      <section className="bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-6 mb-6">
+        <div className="flex items-center gap-4 mb-4">
+          <LogOut className="w-5 h-5 text-red-600" />
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Conta</h2>
+        </div>
+        <button
+          onClick={() => logout()}
+          className="px-4 py-2.5 bg-red-50 text-red-600 font-medium text-sm rounded-lg hover:bg-red-100 active:scale-[0.97] transition-all duration-200"
+        >
+          Sair da conta
         </button>
       </section>
 
@@ -194,7 +211,7 @@ export default function ConfiguracoesPage() {
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">Sobre o Sistema</h2>
         </div>
         <p className="text-sm text-[var(--text-muted)]">
-          BarberPro — Sistema de gestão para barbearias. Os horários de funcionamento configurados aqui são usados como referência visual. 
+          BarberPro — Sistema de gestão para barbearias. Os horários de funcionamento configurados aqui são usados como referência visual.
           O backend controla os horários permitidos via configuração do servidor (HORARIO_ABERTURA e HORARIO_FECHAMENTO).
         </p>
       </section>
