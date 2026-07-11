@@ -17,13 +17,13 @@ interface WorkingHours {
 const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
 const defaultWorkingHours: WorkingHours[] = [
-  { day: 0, active: false, start: '09:00', end: '18:00' },
-  { day: 1, active: true, start: '08:00', end: '18:00' },
-  { day: 2, active: true, start: '08:00', end: '18:00' },
-  { day: 3, active: true, start: '08:00', end: '18:00' },
-  { day: 4, active: true, start: '08:00', end: '18:00' },
-  { day: 5, active: true, start: '08:00', end: '18:00' },
-  { day: 6, active: true, start: '08:00', end: '17:00' },
+  { day: 0, active: false, start: '09:00', end: '20:00' },
+  { day: 1, active: true, start: '08:00', end: '20:00' },
+  { day: 2, active: true, start: '08:00', end: '20:00' },
+  { day: 3, active: true, start: '08:00', end: '20:00' },
+  { day: 4, active: true, start: '08:00', end: '20:00' },
+  { day: 5, active: true, start: '08:00', end: '20:00' },
+  { day: 6, active: true, start: '08:00', end: '20:00' },
 ]
 
 export default function ConfiguracoesPage() {
